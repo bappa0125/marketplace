@@ -1,14 +1,74 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import './App.css'
 
 function App() {
   const [scrollY, setScrollY] = useState(0)
+  const [isSolutionsOpen, setIsSolutionsOpen] = useState(false)
+  const [openFaq, setOpenFaq] = useState(null)
+  const dropdownRef = useRef(null)
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY)
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsSolutionsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handlePricingClick = (e) => {
+    e.preventDefault()
+    const pricingSection = document.getElementById('pricing')
+    if (pricingSection) {
+      pricingSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
+  const toggleFaq = (index) => {
+    setOpenFaq(openFaq === index ? null : index)
+  }
+
+  const pricingFaqs = [
+    {
+      question: "What pricing models do you offer?",
+      answer: "We offer flexible pricing models including per-project pricing, monthly subscriptions, and enterprise agreements. Our pricing is customized based on your specific requirements, scale, and the technologies involved (Kafka, WebMethod, Talend, DataIKU, etc.)."
+    },
+    {
+      question: "Do you offer tiered pricing for different company sizes?",
+      answer: "Yes, we have pricing tiers designed for startups, mid-size companies, and large enterprises. Each tier includes different levels of support, resources, and features. Contact our sales team to find the right fit for your organization."
+    },
+    {
+      question: "What's included in your pricing?",
+      answer: "Our pricing includes implementation services, 24/7 support, regular maintenance, updates, security monitoring, and access to our expert team. Enterprise plans also include dedicated account managers, priority support, and custom integrations."
+    },
+    {
+      question: "Are there any setup or onboarding fees?",
+      answer: "Setup fees vary depending on the complexity of your project. Simple integrations may have minimal or no setup fees, while complex enterprise implementations may include one-time onboarding costs. We'll provide a detailed breakdown during your consultation."
+    },
+    {
+      question: "Can I get a custom quote for my specific needs?",
+      answer: "Absolutely! We understand that every business has unique requirements. Schedule a demo or consultation with our team, and we'll create a customized pricing plan that matches your specific middleware needs, scale, and budget."
+    },
+    {
+      question: "What payment terms do you offer?",
+      answer: "We offer flexible payment terms including monthly, quarterly, and annual payment options. Annual contracts often include discounts. Enterprise clients can negotiate custom payment terms based on their procurement requirements."
+    },
+    {
+      question: "Is there a free trial or pilot program?",
+      answer: "Yes, we offer pilot programs for qualified prospects. This allows you to evaluate our services with a smaller scope before committing to a full implementation. Contact us to discuss pilot program availability for your use case."
+    },
+    {
+      question: "What happens if I need to scale up or down?",
+      answer: "Our pricing is designed to be scalable. You can upgrade or adjust your plan as your needs change. We'll work with you to ensure your pricing remains aligned with your usage and requirements without penalties for scaling down."
+    }
+  ]
 
   return (
     <div className="app">
@@ -22,10 +82,31 @@ function App() {
               </svg>
             </div>
             <nav className="nav">
-              <a href="#solutions">Solutions</a>
+              <div 
+                className="nav-item dropdown" 
+                ref={dropdownRef}
+                onMouseEnter={() => setIsSolutionsOpen(true)}
+                onMouseLeave={() => setIsSolutionsOpen(false)}
+              >
+                <a href="#solutions" className="nav-link">
+                  Solutions
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="dropdown-arrow">
+                    <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </a>
+                {isSolutionsOpen && (
+                  <div className="dropdown-menu">
+                    <a href="#webmethod" className="dropdown-item">WebMethod</a>
+                    <a href="#talend" className="dropdown-item">Talend</a>
+                    <a href="#airflow" className="dropdown-item">Airflow</a>
+                    <a href="#powerbi" className="dropdown-item">PowerBI</a>
+                    <a href="#dataiku" className="dropdown-item">DataIKU</a>
+                  </div>
+                )}
+              </div>
               <a href="#services">Services</a>
               <a href="#capabilities">Capabilities</a>
-              <a href="#support">Support</a>
+              <a href="#pricing" onClick={handlePricingClick}>Pricing</a>
               <a href="#contact">Contact</a>
             </nav>
             <div className="header-actions">
@@ -193,6 +274,58 @@ function App() {
             <div className="cta-buttons">
               <button className="btn btn-primary btn-large">Get Started</button>
               <button className="btn btn-secondary btn-large">Contact Sales</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing FAQ Section */}
+      <section id="pricing" className="pricing-faq">
+        <div className="container">
+          <div className="section-header animate-fade-in">
+            <h2 className="section-title">Pricing Questions?</h2>
+            <p className="section-subtitle">Get answers to common pricing questions</p>
+          </div>
+          <div className="faq-container">
+            <div className="faq-list">
+              {pricingFaqs.map((faq, index) => (
+                <div 
+                  key={index} 
+                  className={`faq-item ${openFaq === index ? 'open' : ''}`}
+                  onClick={() => toggleFaq(index)}
+                >
+                  <div className="faq-question">
+                    <span>{faq.question}</span>
+                    <svg 
+                      className="faq-arrow" 
+                      width="20" 
+                      height="20" 
+                      viewBox="0 0 20 20" 
+                      fill="none" 
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path 
+                        d="M5 7.5L10 12.5L15 7.5" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
+                  <div className="faq-answer">
+                    <div className="faq-answer-content">
+                      <div className="bot-avatar">🤖</div>
+                      <p>{faq.answer}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="pricing-cta">
+              <h3>Still have questions?</h3>
+              <p>Our team is here to help you find the perfect pricing plan for your needs.</p>
+              <button className="btn btn-primary btn-large">Contact Sales</button>
             </div>
           </div>
         </div>
