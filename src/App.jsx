@@ -4,8 +4,18 @@ import './App.css'
 function App() {
   const [scrollY, setScrollY] = useState(0)
   const [isSolutionsOpen, setIsSolutionsOpen] = useState(false)
-  const [openFaq, setOpenFaq] = useState(null)
+  const [chatMessages, setChatMessages] = useState([])
+  const [currentMessageIndex, setCurrentMessageIndex] = useState(0)
+  const [isTyping, setIsTyping] = useState(false)
+  const [userInteracted, setUserInteracted] = useState(false)
+  const [userInput, setUserInput] = useState('')
+  const [pricingInView, setPricingInView] = useState(false)
+  const [chatStarted, setChatStarted] = useState(false)
+  const chatEndRef = useRef(null)
   const dropdownRef = useRef(null)
+  const pricingSectionRef = useRef(null)
+  const typingIntervalRef = useRef(null)
+  const userInteractedRef = useRef(false)
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY)
@@ -28,12 +38,40 @@ function App() {
     const pricingSection = document.getElementById('pricing')
     if (pricingSection) {
       pricingSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      // Start chat when pricing is clicked
+      setTimeout(() => {
+        setPricingInView(true)
+        setChatStarted(true)
+      }, 500)
     }
   }
 
-  const toggleFaq = (index) => {
-    setOpenFaq(openFaq === index ? null : index)
-  }
+  // Intersection Observer for pricing section
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setPricingInView(true)
+            if (!chatStarted) {
+              setChatStarted(true)
+            }
+          }
+        })
+      },
+      { threshold: 0.3 }
+    )
+
+    if (pricingSectionRef.current) {
+      observer.observe(pricingSectionRef.current)
+    }
+
+    return () => {
+      if (pricingSectionRef.current) {
+        observer.unobserve(pricingSectionRef.current)
+      }
+    }
+  }, [chatStarted])
 
   const pricingFaqs = [
     {
@@ -70,6 +108,131 @@ function App() {
     }
   ]
 
+  useEffect(() => {
+    userInteractedRef.current = userInteracted
+  }, [userInteracted])
+
+  // Initialize chat messages from FAQs
+  useEffect(() => {
+    if (!chatStarted || userInteractedRef.current) return
+    
+    if (pricingFaqs.length === 0 || currentMessageIndex >= pricingFaqs.length * 2) return
+    
+    const messageDelay = currentMessageIndex === 0 ? 1000 : 3000
+    
+    const timer = setTimeout(() => {
+      if (userInteractedRef.current) {
+        clearTimeout(timer)
+        return
+      }
+      
+      if (currentMessageIndex % 2 === 0) {
+        // User question
+        const faqIndex = currentMessageIndex / 2
+        setChatMessages(prev => [...prev, {
+          type: 'user',
+          text: pricingFaqs[faqIndex].question,
+          isTyping: false
+        }])
+        setCurrentMessageIndex(prev => prev + 1)
+      } else {
+        // Bot answer - start typing
+        const faqIndex = Math.floor(currentMessageIndex / 2)
+        const answer = pricingFaqs[faqIndex].answer
+        
+        setChatMessages(prev => [...prev, {
+          type: 'bot',
+          text: '',
+          isTyping: false
+        }])
+        
+        setIsTyping(true)
+        let charIndex = 0
+        
+        if (typingIntervalRef.current) {
+          clearInterval(typingIntervalRef.current)
+        }
+        
+        typingIntervalRef.current = setInterval(() => {
+          if (userInteractedRef.current) {
+            if (typingIntervalRef.current) {
+              clearInterval(typingIntervalRef.current)
+              typingIntervalRef.current = null
+            }
+            setIsTyping(false)
+            return
+          }
+          
+          if (charIndex < answer.length) {
+            const typedText = answer.substring(0, charIndex + 1)
+            setChatMessages(prev => {
+              const newMessages = [...prev]
+              newMessages[newMessages.length - 1] = { type: 'bot', text: typedText, isTyping: false }
+              return newMessages
+            })
+            charIndex++
+          } else {
+            if (typingIntervalRef.current) {
+              clearInterval(typingIntervalRef.current)
+              typingIntervalRef.current = null
+            }
+            setIsTyping(false)
+            setCurrentMessageIndex(prev => prev + 1)
+          }
+        }, 30)
+      }
+    }, messageDelay)
+    
+    return () => {
+      clearTimeout(timer)
+      if (typingIntervalRef.current) {
+        clearInterval(typingIntervalRef.current)
+        typingIntervalRef.current = null
+      }
+    }
+  }, [currentMessageIndex, chatStarted])
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatMessages, isTyping])
+
+  const handleSendMessage = (e) => {
+    e.preventDefault()
+    if (!userInput.trim()) return
+    
+    setUserInteracted(true)
+    setChatMessages(prev => [...prev, {
+      type: 'user',
+      text: userInput,
+      isTyping: false
+    }])
+    
+    // Simple bot response
+    setTimeout(() => {
+      setIsTyping(true)
+      setTimeout(() => {
+        setChatMessages(prev => [...prev, {
+          type: 'bot',
+          text: "Thank you for your question! Our sales team will get back to you shortly with detailed pricing information. Would you like to schedule a consultation?",
+          isTyping: false
+        }])
+        setIsTyping(false)
+      }, 500)
+    }, 500)
+    
+    setUserInput('')
+  }
+
+  const handleInputFocus = () => {
+    setUserInteracted(true)
+    userInteractedRef.current = true
+    if (typingIntervalRef.current) {
+      clearInterval(typingIntervalRef.current)
+      typingIntervalRef.current = null
+      setIsTyping(false)
+    }
+  }
+
   return (
     <div className="app">
       {/* Header */}
@@ -96,11 +259,11 @@ function App() {
                 </a>
                 {isSolutionsOpen && (
                   <div className="dropdown-menu">
-                    <a href="#webmethod" className="dropdown-item">WebMethod</a>
-                    <a href="#talend" className="dropdown-item">Talend</a>
-                    <a href="#airflow" className="dropdown-item">Airflow</a>
-                    <a href="#powerbi" className="dropdown-item">PowerBI</a>
-                    <a href="#dataiku" className="dropdown-item">DataIKU</a>
+                    <a href="#solutions" className="dropdown-item" onClick={(e) => { e.preventDefault(); setIsSolutionsOpen(false); }}>WebMethod</a>
+                    <a href="#solutions" className="dropdown-item" onClick={(e) => { e.preventDefault(); setIsSolutionsOpen(false); }}>Talend</a>
+                    <a href="#solutions" className="dropdown-item" onClick={(e) => { e.preventDefault(); setIsSolutionsOpen(false); }}>Airflow</a>
+                    <a href="#solutions" className="dropdown-item" onClick={(e) => { e.preventDefault(); setIsSolutionsOpen(false); }}>PowerBI</a>
+                    <a href="#solutions" className="dropdown-item" onClick={(e) => { e.preventDefault(); setIsSolutionsOpen(false); }}>DataIKU</a>
                   </div>
                 )}
               </div>
@@ -279,53 +442,74 @@ function App() {
         </div>
       </section>
 
-      {/* Pricing FAQ Section */}
-      <section id="pricing" className="pricing-faq">
+      {/* Pricing Chatbot Section */}
+      <section id="pricing" ref={pricingSectionRef} className="pricing-chatbot">
         <div className="container">
           <div className="section-header animate-fade-in">
             <h2 className="section-title">Pricing Questions?</h2>
-            <p className="section-subtitle">Get answers to common pricing questions</p>
+            <p className="section-subtitle">Ask our AI assistant about pricing</p>
           </div>
-          <div className="faq-container">
-            <div className="faq-list">
-              {pricingFaqs.map((faq, index) => (
-                <div 
-                  key={index} 
-                  className={`faq-item ${openFaq === index ? 'open' : ''}`}
-                  onClick={() => toggleFaq(index)}
-                >
-                  <div className="faq-question">
-                    <span>{faq.question}</span>
-                    <svg 
-                      className="faq-arrow" 
-                      width="20" 
-                      height="20" 
-                      viewBox="0 0 20 20" 
-                      fill="none" 
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path 
-                        d="M5 7.5L10 12.5L15 7.5" 
-                        stroke="currentColor" 
-                        strokeWidth="2" 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                  <div className="faq-answer">
-                    <div className="faq-answer-content">
-                      <div className="bot-avatar">🤖</div>
-                      <p>{faq.answer}</p>
+          <div className="chatbot-container">
+            <div className="chatbot-messages">
+              {chatMessages.length === 0 && (
+                <div className="chat-welcome">
+                  <div className="bot-avatar-large">🤖</div>
+                  <p>Hi! I'm here to help answer your pricing questions. Feel free to ask me anything!</p>
+                </div>
+              )}
+              {chatMessages.map((message, index) => (
+                <div key={index} className={`chat-message ${message.type === 'user' ? 'user-message' : 'bot-message'}`}>
+                  {message.type === 'bot' && (
+                    <div className="message-avatar">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 17H11V15H13V17ZM13 13H11V7H13V13Z" fill="currentColor"/>
+                      </svg>
                     </div>
+                  )}
+                  <div className="message-content">
+                    <p>{message.text}</p>
                   </div>
+                  {message.type === 'user' && (
+                    <div className="message-avatar user-avatar">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 12C14.21 12 16 10.21 16 8C16 5.79 14.21 4 12 4C9.79 4 8 5.79 8 8C8 10.21 9.79 12 12 12ZM12 14C9.33 14 4 15.34 4 18V20H20V18C20 15.34 14.67 14 12 14Z" fill="currentColor"/>
+                      </svg>
+                    </div>
+                  )}
                 </div>
               ))}
+              {isTyping && (
+                <div className="chat-message bot-message">
+                  <div className="message-avatar">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 17H11V15H13V17ZM13 13H11V7H13V13Z" fill="currentColor"/>
+                    </svg>
+                  </div>
+                  <div className="message-content typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
             </div>
-            <div className="pricing-cta">
-              <h3>Still have questions?</h3>
-              <p>Our team is here to help you find the perfect pricing plan for your needs.</p>
-              <button className="btn btn-primary btn-large">Contact Sales</button>
+            <div className="chatbot-input-container">
+              <form onSubmit={handleSendMessage} className="chatbot-input-form">
+                <input
+                  type="text"
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  onFocus={handleInputFocus}
+                  placeholder="Ask about pricing..."
+                  className="chatbot-input"
+                />
+                <button type="submit" className="chatbot-send-btn" disabled={!userInput.trim()}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2.01 21L23 12L2.01 3L2 10L17 12L2 14L2.01 21Z" fill="currentColor"/>
+                  </svg>
+                </button>
+              </form>
             </div>
           </div>
         </div>
